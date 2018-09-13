@@ -1,0 +1,84 @@
+name:                codeparty
+version:             0.0.0
+homepage:            https://github.com/chrisdone/codeparty#readme
+author:              Chris Done
+maintainer:          chrisdone@gmail.com
+copyright:           2018 Chris Done
+category:            Network
+build-type:          Simple
+cabal-version:       >=1.10
+
+extra-source-files:
+  src/UUID.purs
+  src/Location.purs
+  src/CodeParty/Session.purs
+  src/CodeParty/Components/Party.purs
+  src/CodeParty/Components/Editor.purs
+  src/SessionStorage.purs
+  src/Main.purs
+  src/UUID.js
+  src/Location.js
+  src/SessionStorage.js
+  psc-package.json
+
+library
+  hs-source-dirs:    src
+  exposed-modules:   CodeParty
+                     CodeParty.Types
+                     CodeParty.Model
+                     CodeParty.Foundation
+  ghc-options:       -Wall
+  build-depends:       base
+                     , monad-logger
+                     , time
+                     , resource-pool
+                     , mtl
+                     , lucid
+                     , yesod-lucid
+                     , yesod
+                     , conduit
+                     , text
+                     , bytestring
+                     , persistent
+                     , network-uri
+                     , HUnit
+                     , yesod-auth
+                     , yesod-static
+                     , yesod-core
+                     , containers
+                     , html-conduit
+                     , xml-conduit
+                     , syb
+                     , esqueleto
+                     , persistent-template
+                     , persistent-sqlite
+                     , websockets
+                     , yesod-websockets
+                     , aeson
+                     , stm
+  default-language:    Haskell2010
+
+executable codeparty
+  hs-source-dirs:      app
+  main-is:             Main.hs
+  ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
+  build-depends:       base
+                     , monad-logger
+                     , optparse-simple
+                     , text
+                     , codeparty
+                     , mtl
+                     , resource-pool
+                     , yesod
+                     , persistent-sqlite
+                     , websockets
+                     , yesod-websockets
+                     , stm
+  default-language:    Haskell2010
+
+executable codeparty-build
+  build-depends: base, process, purescript
+  hs-source-dirs: app
+  main-is: build-ps.hs
+  ghc-options: -O0 -Wall
+  default-language: Haskell2010

@@ -1,6 +1,7 @@
 resolver: lts-11.13
 
 packages:
+- .
 - location:
     git: https://github.com/purescript/purescript.git
     commit: f8ca834ebe3d8e5d484e5b55b5d1b8b6f0a783a2
@@ -9,4 +10,11 @@ packages:
     git: https://github.com/purescript/psc-package.git
     commit: 1529f28a70a2b65b02efe4ddd6e879ced1a85b20
   extra-dep: false
-
+- location:
+    git: https://github.com/bitemyapp/esqueleto.git
+    commit: 08c9b4cdf977d5bcd1baba046a007940c1940758
+  extra-dep: true
+- location:
+    git: https://github.com/chrisdone/yesod-lucid
+    commit: de8b455a6efcc02b95d5f6363a29044e230dc75f
+  extra-dep: true

@@ -1,0 +1,45 @@
+body {
+  background: #323239;
+  color: #fff;
+}
+.editor {
+  height: 400px;
+  width: 500px;
+  float:  left;
+  margin-right: 15px;
+  margin-bottom: 15px;
+  border-radius: 4px;
+}
+
+.title {
+  width: 100%;
+  border-radius: 5px;
+}
+
+.title input {
+  font-family: sans-serif;
+  font-weight: bold;
+  width: 100%;
+  padding: 5px;
+  line-height: 20px;
+  height: 30px;
+  background: #39a0ff;
+  color:#fff;
+  border: 0;
+  border-radius: 3px 3px 0px 0;
+}
+
+.title input:disabled {
+  color: #89e0ff;
+}
+
+.input textarea:disabled {
+  color: #999;
+  background: #434349;
+}
+
+.input .CodeMirror {
+  width: 100%;
+  height: 370px;
+  border-radius: 3px;
+}

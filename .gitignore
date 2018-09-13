@@ -1,4 +1,8 @@
+.psc-package-work
 .psc-package
 .stack-work
 app.js
 output
+client_session_key.aes
+codeparty.sqlite
+static/index.js
