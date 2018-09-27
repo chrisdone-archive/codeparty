@@ -2,8 +2,9 @@
 
 module CodeParty.Components.Editor where
 
-import CodeParty.Types (Editor(..), SessionId)
+import CodeParty.Types
 import Data.Maybe (Maybe(..))
+import Data.Monoid ((<>))
 import Data.Symbol (SProxy(..))
 import Effect.Aff (Aff)
 import Halogen as H
@@ -58,16 +59,23 @@ component sessionId =
             [ HH.input
                 [ HP.value (editor . title)
                 , HP.type_ HP.InputText
-                , HP.placeholder (if editor . session == sessionId
-                                     then "Type your name here"
-                                     else "Another participant")
+                , HP.placeholder
+                    (if editor . session == sessionId
+                       then "Type your name here"
+                       else "Another participant")
                 , E.onValueInput
                     (\i -> Just (SetEditor (Editor (editor {title = i})) unit))
                 , HP.disabled (not (editor . session == sessionId))
                 ]
             ]
         , HH.div
-            [HP.class_ (ClassName "input")]
+            [ HP.class_
+                (ClassName
+                   ("input " <>
+                    if editor . session == sessionId
+                      then "editable"
+                      else "readonly"))
+            ]
             [ HH.slot
                 (CodeMirrorSlot (editor . session))
                 CodeMirror.component
@@ -76,12 +84,21 @@ component sessionId =
                    , readOnly: not (editor . session == sessionId)
                    , theme: "zenburn"
                    , mode: "haskell"
+                   , selection:
+                       let Selection range = editor . selection
+                        in range
                    })
                 (\i ->
                    Just
                      (case i of
-                        CodeMirror.Change text ->
-                          SetEditor (Editor (editor {input = text})) unit))
+                        CodeMirror.Change {value, selection} ->
+                          SetEditor
+                            (Editor
+                               (editor
+                                  { input = value
+                                  , selection = Selection selection
+                                  }))
+                            unit))
             ]
         , HH.div [HP.class_ (ClassName "output")] [HH.text (editor . output)]
         ]

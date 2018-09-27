@@ -2,6 +2,7 @@
 
 module Halogen.CodeMirror where
 
+import Control.Monad
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
 import Effect.Aff (Aff)
@@ -18,10 +19,21 @@ import Web.HTML.HTMLElement (HTMLElement)
 data Input = Input Config
 
 type Config =
-  { readOnly :: Boolean
-  , theme    :: String
-  , mode     :: String
-  , value    :: String
+  { readOnly  :: Boolean
+  , theme     :: String
+  , mode      :: String
+  , value     :: String
+  , selection :: Range
+  }
+
+type Range =
+  { head :: Pos
+  , anchor :: Pos
+  }
+
+type Pos =
+  { line :: Int
+  , ch :: Int
   }
 
 data State = State
@@ -31,11 +43,11 @@ data State = State
 
 data Query a
   = Initializer a
-  | InternalChange String a
+  | InternalChange { value :: String, selection :: Range } a
   | Receive Config a
 
 data Output =
-  Change String
+  Change { value :: String, selection :: Range }
 
 foreign import data CodeMirror :: Type
 
@@ -74,18 +86,21 @@ eval (Initializer a) = do
     Nothing -> pure a
     Just element -> do
       cm <- H.liftEffect (codeMirror element config)
-      void
-        (H.subscribe
-           (eventSource
-              (\callback ->
-                 on
-                   cm
-                   "change"
-                   (do value <- getValue cm
-                       callback value))
-              (\text ->
-                 Just
-                   (H.request (\next -> InternalChange text (next Listening))))))
+      unless
+        (config . readOnly)
+        (void
+           (H.subscribe
+              (eventSource
+                 (\callback ->
+                    on
+                      cm
+                      "cursorActivity"
+                      (do value <- getValue cm
+                          selection <- getSelection cm
+                          callback { value, selection }))
+                 (\info ->
+                    Just
+                      (H.request (\next -> InternalChange info (next Listening)))))))
       H.put (State {codeMirror: Just cm, config: config})
       pure a
 eval (InternalChange text a) = do
@@ -94,9 +109,12 @@ eval (InternalChange text a) = do
 eval (Receive config' a) = do
   State {codeMirror: mcm, config} <- H.get
   case mcm of
-    Just cm ->
+    Just cm -> do
       if config' . value /= config . value
         then H.liftEffect (setValue cm (config' . value))
+        else pure unit
+      if config' . selection /= config . selection
+        then H.liftEffect (setSelection cm (config' . selection))
         else pure unit
     Nothing -> pure unit
   H.put (State {codeMirror: mcm, config: config'})
@@ -120,7 +138,16 @@ foreign import getValue
   :: CodeMirror
   -> Effect String
 
+foreign import getSelection
+  :: CodeMirror
+  -> Effect Range
+
 foreign import setValue
   :: CodeMirror
   -> String
+  -> Effect Unit
+
+foreign import setSelection
+  :: CodeMirror
+  -> Range
   -> Effect Unit

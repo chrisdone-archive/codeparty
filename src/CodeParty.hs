@@ -13,7 +13,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 
 module CodeParty where
-
+import           Data.Monoid
 import           CodeParty.Foundation
 import           CodeParty.Model
 import           CodeParty.Types
@@ -36,12 +36,13 @@ import           Yesod.WebSockets
 data Eupdate = Eupdate
   { eupdateTitle :: Text
   , eupdateInput :: Text
+  , eupdateSelection :: Selection
   }
 
 instance FromJSON Eupdate where
   parseJSON j = do
     o <- parseJSON j
-    Eupdate <$> o.: "title" <*> o.: "input"
+    Eupdate <$> o.: "title" <*> o.: "input" <*> o.: "selection"
 
 mkYesodDispatch "App" resourcesApp
 
@@ -80,9 +81,10 @@ receiveLoop roomId sessionId = do
                        [EditorUuid ==. sessionId]
                        [ EditorTitle =. eupdateTitle eupdate
                        , EditorInput =. eupdateInput eupdate
+                       , EditorSelection =. eupdateSelection eupdate
                        ])
                   signalUpdated roomId)
-          Nothing -> error "Invalid incoming update!")
+          Nothing -> error ("Invalid incoming update!" <> show str))
 
 sendLoop :: TChan Room -> Room -> SessionId -> WebSocketsT Handler Void
 sendLoop updates roomId sessionId = do
@@ -104,6 +106,7 @@ sendEditors editors =
                , "title" .= editorTitle editor
                , "input" .= editorInput editor
                , "output" .= editorOutput editor
+               , "selection" .= editorSelection editor
                ])
           editors))
 
@@ -128,7 +131,14 @@ getEditorsAutoCreatingThisOne roomid sessionId = do
           Nothing -> do
             let newEditor =
                   Editor
-                    { editorRoom = roomid
+                    { editorSelection =
+                        Selection
+                          { selectionStartLine = 1
+                          , selectionStartCh = 1
+                          , selectionEndLine = 1
+                          , selectionEndCh = 1
+                          }
+                    , editorRoom = roomid
                     , editorUuid = sessionId
                     , editorCreated = now
                     , editorEdited = now

@@ -3,7 +3,7 @@
 module CodeParty.Components.Party where
 
 import CodeParty.Components.Editor as Editor
-import CodeParty.Types (Editor(..), Room, SessionId)
+import CodeParty.Types
 import Data.Argonaut.Core as Json
 import Data.Argonaut.Encode.Class (class EncodeJson, encodeJson)
 import Data.Argonaut.Encode.Combinators ((:=), (~>))
@@ -48,12 +48,14 @@ derive newtype instance ordEditorSlot :: Ord EditorSlot
 newtype EUpdate = EUpdate
   { title :: String
   , input :: String
+  , selection :: Selection
   }
 
 instance eupdate :: EncodeJson EUpdate where
   encodeJson (EUpdate editor) =
     ("title" := editor . title) ~>
     ("input" := editor . input) ~>
+    ("selection" := editor . selection) ~>
     Json.jsonEmptyObject
 
 --------------------------------------------------------------------------------
@@ -105,10 +107,10 @@ component =
     eval (IncomingEditorsUpdate editors a) = do
       _ <- H.modify (\(State state) -> State (state {editors = editors}))
       pure a
-    eval (OutgoingEditorUpdate (Editor {title, input}) a) = do
+    eval (OutgoingEditorUpdate (Editor {title, input, selection}) a) = do
       State {mwebsocket} <- H.get
       case mwebsocket of
         Nothing -> pure a
         Just websocket -> do
-          Websocket.send websocket (EUpdate {title, input})
+          Websocket.send websocket (EUpdate {title, input, selection})
           pure a

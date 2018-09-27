@@ -43,3 +43,7 @@ body {
   height: 370px;
   border-radius: 3px;
 }
+
+.readonly div.CodeMirror-cursors {
+  visibility: visible;
+}
