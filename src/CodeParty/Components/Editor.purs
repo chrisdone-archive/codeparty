@@ -82,7 +82,7 @@ component sessionId =
                 (CodeMirror.Input
                    { value: editor . input
                    , readOnly: not (editor . session == sessionId)
-                   , theme: "zenburn"
+                   , theme: "duotone-light"
                    , mode: "haskell"
                    , selection:
                        let Selection range = editor . selection

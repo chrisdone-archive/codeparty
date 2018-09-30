@@ -1,6 +1,18 @@
+@import url('https://use.fontawesome.com/releases/v5.2.0/css/all.css');
+
+.layout-choice {
+    margin-bottom: 10px;
+    color: #75726b;
+}
+
+.layout-choice .fas {
+    margin-right: 10px;
+    font-size: 30px;
+}
+
 body {
-  background: #323239;
-  color: #fff;
+  /* background: #323239; */
+  /* color: #fff; */
 }
 .editor {
   height: 400px;
@@ -23,14 +35,14 @@ body {
   padding: 5px;
   line-height: 20px;
   height: 30px;
-  background: #39a0ff;
-  color:#fff;
+  background: #f3eedf;
   border: 0;
   border-radius: 3px 3px 0px 0;
+  color: #584e3a;
 }
 
 .title input:disabled {
-  color: #89e0ff;
+  color: #b7b1a6
 }
 
 .input textarea:disabled {

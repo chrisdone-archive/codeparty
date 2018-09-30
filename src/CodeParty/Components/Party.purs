@@ -2,8 +2,10 @@
 
 module CodeParty.Components.Party where
 
-import CodeParty.Components.Editor as Editor
 import CodeParty.Types
+import Prelude
+
+import CodeParty.Components.Editor as Editor
 import Data.Argonaut.Core as Json
 import Data.Argonaut.Encode.Class (class EncodeJson, encodeJson)
 import Data.Argonaut.Encode.Combinators ((:=), (~>))
@@ -15,8 +17,10 @@ import Effect.Aff (Aff)
 import Effect.Console (log)
 import Halogen as H
 import Halogen.HTML as HH
+import Halogen.HTML.Core (ClassName(..))
+import Halogen.HTML.Events as E
+import Halogen.HTML.Properties as HP
 import Halogen.Websocket as Websocket
-import Prelude
 
 --------------------------------------------------------------------------------
 -- Types
@@ -82,7 +86,11 @@ component =
         }
     render (State state) =
       HH.div_
-        (map
+        ([HH.div [HP.class_ (ClassName "layout-choice")]
+                 [HH.div [HP.class_ (ClassName "fas fa-th")] []
+                 ,HH.div [HP.class_ (ClassName "fas fa-th-large")] []
+                 ,HH.div [HP.class_ (ClassName "fas fa-stop")] []]] <>
+         map
            (\e@(Editor editor) ->
               HH.slot
                 (EditorSlot (editor . session))

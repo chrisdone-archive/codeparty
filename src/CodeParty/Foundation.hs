@@ -40,3 +40,5 @@ instance YesodPersist App where
   runDB act = do
     App {appPool = pool} <- getYesod
     runSqlPool act pool
+
+
