@@ -35,6 +35,7 @@ data State = State
   , room :: Room
   , mwebsocket :: Maybe Websocket.Websocket
   , editors :: Array Editor
+  , layout :: Layout
   }
 
 data Query a
@@ -42,6 +43,10 @@ data Query a
   | WebsocketError String a
   | IncomingEditorsUpdate (Array Editor) a
   | OutgoingEditorUpdate Editor a
+  | SetLayout Layout a
+
+data Layout = OneColumn | TwoColumn | ThreeColumn
+derive instance eqLayout :: Eq Layout
 
 _editor = SProxy :: SProxy "editor"
 
@@ -61,6 +66,11 @@ instance eupdate :: EncodeJson EUpdate where
     ("input" := editor . input) ~>
     ("selection" := editor . selection) ~>
     Json.jsonEmptyObject
+
+data LayoutChoice = LayoutChoice
+  { cls :: String
+  , layout :: Layout
+  }
 
 --------------------------------------------------------------------------------
 -- Component
@@ -83,22 +93,50 @@ component =
         , room: i . room
         , editors: []
         , mwebsocket: Nothing
+        , layout: ThreeColumn
         }
     render (State state) =
       HH.div_
-        ([HH.div [HP.class_ (ClassName "layout-choice")]
-                 [HH.div [HP.class_ (ClassName "fas fa-th")] []
-                 ,HH.div [HP.class_ (ClassName "fas fa-th-large")] []
-                 ,HH.div [HP.class_ (ClassName "fas fa-stop")] []]] <>
-         map
-           (\e@(Editor editor) ->
-              HH.slot
-                (EditorSlot (editor . session))
-                (Editor.component (state . sessionId))
-                e
-                (\e' -> Just (OutgoingEditorUpdate e' unit)))
-           (state . editors))
+        ([ HH.div
+             [HP.class_ (ClassName "layout-choice")]
+             (map
+                (\(LayoutChoice choice) ->
+                   HH.div
+                     [ HP.class_
+                         (ClassName
+                            ("fas " <> choice . cls <>
+                             if choice . layout == state . layout
+                               then " selected"
+                               else ""))
+                     , E.onClick (E.input_ (SetLayout choice . layout))
+                     ]
+                     [])
+                [ LayoutChoice {cls: "fa-stop", layout: OneColumn}
+                , LayoutChoice {cls: "fa-th-large", layout: TwoColumn}
+                , LayoutChoice {cls: "fa-th", layout: ThreeColumn}
+                ])
+         , HH.div
+             [ HP.class_
+                 (ClassName
+                    ("grid " <>
+                     case state . layout of
+                       OneColumn -> "one-column"
+                       TwoColumn -> "two-column"
+                       ThreeColumn -> "three-column"))
+             ]
+             (map
+                (\e@(Editor editor) ->
+                   HH.slot
+                     (EditorSlot (editor . session))
+                     (Editor.component (state . sessionId))
+                     e
+                     (\e' -> Just (OutgoingEditorUpdate e' unit)))
+                (state . editors))
+         ])
     eval :: Query ~> H.ParentDSL State Query Editor.Query EditorSlot Void Aff
+    eval (SetLayout layout a) = do
+      _ <- H.modify (\(State state) -> State (state {layout = layout}))
+      pure a
     eval (Initialize a) = do
       State {sessionId} <- H.get
       websocket <- Websocket.connect
