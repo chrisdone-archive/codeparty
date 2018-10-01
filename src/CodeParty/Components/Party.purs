@@ -2,13 +2,12 @@
 
 module CodeParty.Components.Party where
 
-import CodeParty.Types
-import Prelude
-
 import CodeParty.Components.Editor as Editor
+import CodeParty.Types
 import Data.Argonaut.Core as Json
 import Data.Argonaut.Encode.Class (class EncodeJson, encodeJson)
 import Data.Argonaut.Encode.Combinators ((:=), (~>))
+import Data.Array as Array
 import Data.Either (either)
 import Data.Maybe (Maybe(..))
 import Data.Monoid ((<>))
@@ -21,6 +20,7 @@ import Halogen.HTML.Core (ClassName(..))
 import Halogen.HTML.Events as E
 import Halogen.HTML.Properties as HP
 import Halogen.Websocket as Websocket
+import Prelude
 
 --------------------------------------------------------------------------------
 -- Types
@@ -93,28 +93,33 @@ component =
         , room: i . room
         , editors: []
         , mwebsocket: Nothing
-        , layout: ThreeColumn
+        , layout: OneColumn
         }
     render (State state) =
       HH.div_
-        ([ HH.div
-             [HP.class_ (ClassName "layout-choice")]
-             (map
-                (\(LayoutChoice choice) ->
-                   HH.div
-                     [ HP.class_
-                         (ClassName
-                            ("fas " <> choice . cls <>
-                             if choice . layout == state . layout
-                               then " selected"
-                               else ""))
-                     , E.onClick (E.input_ (SetLayout choice . layout))
-                     ]
-                     [])
-                [ LayoutChoice {cls: "fa-stop", layout: OneColumn}
-                , LayoutChoice {cls: "fa-th-large", layout: TwoColumn}
-                , LayoutChoice {cls: "fa-th", layout: ThreeColumn}
-                ])
+        ([ if Array.null (state . editors)
+             then HH.div
+                    [HP.class_ (ClassName "lds-ripple")]
+                    [HH.div_ [], HH.div_ []]
+             else HH.div
+                    [HP.class_ (ClassName "layout-choice")]
+                    (map
+                       (\(LayoutChoice choice) ->
+                          HH.div
+                            [ HP.class_
+                                (ClassName
+                                   ("fas " <> choice . cls <>
+                                    if choice . layout == state . layout
+                                      then " selected"
+                                      else ""))
+                            , E.onClick (E.input_ (SetLayout choice . layout))
+                            ]
+                            [])
+                       [ LayoutChoice {cls: "fa-stop", layout: OneColumn}
+                       , LayoutChoice
+                           {cls: "fa-th-large", layout: TwoColumn}
+                       , LayoutChoice {cls: "fa-th", layout: ThreeColumn}
+                       ])
          , HH.div
              [ HP.class_
                  (ClassName
@@ -131,7 +136,9 @@ component =
                      (Editor.component (state . sessionId))
                      e
                      (\e' -> Just (OutgoingEditorUpdate e' unit)))
-                (state . editors))
+                (Array.sortBy
+                   (comparing (\(Editor e) -> e . session /= state . sessionId))
+                   (state . editors)))
          ])
     eval :: Query ~> H.ParentDSL State Query Editor.Query EditorSlot Void Aff
     eval (SetLayout layout a) = do
@@ -151,7 +158,19 @@ component =
       H.liftEffect (log ("WebsocketError " <> e))
       pure a
     eval (IncomingEditorsUpdate editors a) = do
-      _ <- H.modify (\(State state) -> State (state {editors = editors}))
+      _ <-
+        H.modify
+          (\(State state) ->
+             State
+               (state
+                  { editors = editors
+                  , layout =
+                      case Array.length editors of
+                        1 -> OneColumn
+                        2 -> TwoColumn
+                        3 -> ThreeColumn
+                        _ -> ThreeColumn
+                  }))
       pure a
     eval (OutgoingEditorUpdate (Editor {title, input, selection}) a) = do
       State {mwebsocket} <- H.get
