@@ -158,19 +158,7 @@ component =
       H.liftEffect (log ("WebsocketError " <> e))
       pure a
     eval (IncomingEditorsUpdate editors a) = do
-      _ <-
-        H.modify
-          (\(State state) ->
-             State
-               (state
-                  { editors = editors
-                  , layout =
-                      case Array.length editors of
-                        1 -> OneColumn
-                        2 -> TwoColumn
-                        3 -> ThreeColumn
-                        _ -> ThreeColumn
-                  }))
+      _ <- H.modify (\(State state) -> State (state {editors = editors}))
       pure a
     eval (OutgoingEditorUpdate (Editor {title, input, selection}) a) = do
       State {mwebsocket} <- H.get
