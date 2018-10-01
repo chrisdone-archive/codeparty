@@ -53,7 +53,13 @@ component sessionId =
         }
     render (State {editor: Editor editor}) =
       HH.div
-        [HP.class_ (ClassName "editor")]
+        [ HP.class_
+            (ClassName
+               ("editor " <>
+                if editor . session == sessionId
+                  then "mine"
+                  else "theirs"))
+        ]
         [ HH.div
             [HP.class_ (ClassName "title")]
             [ HH.input
@@ -62,7 +68,7 @@ component sessionId =
                 , HP.placeholder
                     (if editor . session == sessionId
                        then "Type your name here"
-                       else "Another participant")
+                       else "")
                 , E.onValueInput
                     (\i -> Just (SetEditor (Editor (editor {title = i})) unit))
                 , HP.disabled (not (editor . session == sessionId))
@@ -82,11 +88,14 @@ component sessionId =
                 (CodeMirror.Input
                    { value: editor . input
                    , readOnly: not (editor . session == sessionId)
-                   , theme: "duotone-light"
+                   , theme: "tomorrow-night-eighties"
                    , mode: "haskell"
                    , selection:
                        let Selection range = editor . selection
                         in range
+                   , styleActiveLine: true
+                   , lineNumbers: true
+                   , lineWrapping: true
                    })
                 (\i ->
                    Just

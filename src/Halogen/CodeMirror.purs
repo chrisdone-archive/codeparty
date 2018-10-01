@@ -24,6 +24,9 @@ type Config =
   , mode      :: String
   , value     :: String
   , selection :: Range
+  , styleActiveLine :: Boolean
+  , lineNumbers :: Boolean
+  , lineWrapping :: Boolean
   }
 
 type Range =
