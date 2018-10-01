@@ -42,7 +42,6 @@ exports.getSelection = function(codemirror){
   return function(){
     if (codemirror.listSelections().length < 1)
       throw "assert failed: codemirror.listSelections.length";
-    console.log('getSelection: %o', codemirror.listSelections()[0]);
     return codemirror.listSelections()[0];
   };
 }
