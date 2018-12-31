@@ -23,8 +23,9 @@ data State = State { editor :: Editor, access :: Access }
 data Access = Everything | Output
 
 data Query a
-  = SetEditor Editor
-              a
+  = SetEditorContent { selection :: Selection, input:: String }
+             a
+  | SetEditorTitle String a
   | ReceiveEditor Editor
                   a
 
@@ -62,17 +63,18 @@ component sessionId =
         ]
         [ HH.div
             [HP.class_ (ClassName "title")]
-            [ HH.input
-                [ HP.value (editor . title)
-                , HP.type_ HP.InputText
-                , HP.placeholder
-                    (if editor . session == sessionId
-                       then "Type your name here"
-                       else "")
-                , E.onValueInput
-                    (\i -> Just (SetEditor (Editor (editor {title = i})) unit))
-                , HP.disabled (not (editor . session == sessionId))
-                ]
+            [ if editor . session == sessionId
+                 then HH.input
+                        [ HP.value (editor . title)
+                        , HP.type_ HP.InputText
+                        , HP.placeholder
+                            (if editor . session == sessionId
+                               then "Type your name here"
+                               else "")
+                        , E.onValueInput (\i -> Just (SetEditorTitle i unit))
+                        , HP.disabled (not (editor . session == sessionId))
+                        ]
+                 else HH.text (editor . title)
             ]
         , HH.div
             [ HP.class_
@@ -101,20 +103,38 @@ component sessionId =
                    Just
                      (case i of
                         CodeMirror.Change {value, selection} ->
-                          SetEditor
-                            (Editor
-                               (editor
-                                  { input = value
-                                  , selection = Selection selection
-                                  }))
+                          SetEditorContent
+                            {input: value, selection: Selection selection}
                             unit))
             ]
         , HH.div [HP.class_ (ClassName "output")] [HH.text (editor . output)]
         ]
     eval ::
          Query ~> H.ParentDSL State Query CodeMirror.Query CodeMirrorSlot Editor Aff
-    eval (SetEditor e a) = do
-      H.raise e
+    eval (SetEditorTitle title a) = do
+      State {editor} <-
+        H.modify
+          (\(State s) ->
+             State
+               (s
+                  { editor =
+                      let Editor e = s . editor
+                       in Editor (e {title = title})
+                  }))
+      H.raise editor
+      pure a
+    eval (SetEditorContent u a) = do
+      State {editor} <-
+        H.modify
+          (\(State s) ->
+             State
+               (s
+                  { editor =
+                      let Editor e = s . editor
+                       in Editor
+                            (e {selection = u . selection, input = u . input})
+                  }))
+      H.raise editor
       pure a
     eval (ReceiveEditor (Editor editor') a) = do
       State {editor: Editor editor, access} <- H.get

@@ -2,7 +2,7 @@
 
 module Main where
 
-import           CodeParty
+import           CodeParty ()
 import           CodeParty.Foundation
 import           CodeParty.Model
 import           CodeParty.Types
@@ -13,10 +13,8 @@ import           Control.Monad.Reader
 import           Control.Concurrent.STM
 import           Data.Monoid
 import           Data.Pool
-import qualified Data.Text as T
 import           Database.Persist.Sqlite as Persistent
 import           Options.Applicative.Simple
-import           System.Environment
 import           Yesod hiding (toHtml, Html)
 
 --------------------------------------------------------------------------------
