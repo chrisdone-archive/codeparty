@@ -67,7 +67,6 @@ interaction roomId = do
   broadcaster <- fmap appChans getYesod
   updates <- liftIO (atomically (dupTChan broadcaster))
   lift (createEditorIfMissing roomId sessionId)
-  signalUpdated roomId
   race_ (receiveLoop roomId sessionId) (sendLoop updates roomId)
 
 receiveLoop :: Room -> SessionId -> WebSocketsT Handler Void
@@ -103,7 +102,7 @@ sendLoop updates roomId = do
         when
           (room == roomId)
           (do editors <- lift (runDB (getEditors roomId))
-              sendEditors (filter editorConnected (map entityVal editors))))
+              sendEditors (map entityVal editors)))
 
 sendEditors :: [Editor] -> WebSocketsT Handler ()
 sendEditors editors =
@@ -117,7 +116,6 @@ sendEditors editors =
                , "input" .= editorInput editor
                , "output" .= editorOutput editor
                , "selection" .= editorSelection editor
-               , "connected" .= editorConnected editor
                ])
           editors))
 
@@ -134,7 +132,7 @@ getSessionId = do
     Just s -> pure s
 
 createEditorIfMissing :: Room -> SessionId -> Handler ()
-createEditorIfMissing roomid sessionId =
+createEditorIfMissing roomid sessionId = do
   runDB
     (do now <- liftIO getCurrentTime
         updateWhere [EditorUuid ==. sessionId] [EditorConnected =. True]
@@ -161,9 +159,13 @@ createEditorIfMissing roomid sessionId =
                    , editorConnected = True
                    })
           Just {} -> pure ())
+  signalUpdated roomid
 
 getEditors ::
      (BaseBackend backend ~ SqlBackend, MonadIO m, PersistQueryRead backend)
   => Room
   -> ReaderT backend m [Entity Editor]
-getEditors roomid = selectList [EditorRoom ==. roomid] [Asc EditorCreated]
+getEditors roomid =
+  selectList
+    [EditorRoom ==. roomid, EditorConnected ==. True]
+    [Asc EditorCreated]
