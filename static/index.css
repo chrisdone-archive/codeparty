@@ -43,9 +43,21 @@ body {
   color: #fff;
 }
 
-.editor.theirs .title input {
+.editor.theirs .title {
   background: #7dd488;
+  font-family: sans-serif;
+  font-weight: bold;
+  width: auto;
+  padding: 5px;
+  line-height: 20px;
+  font-size: 1ex;
+  border: 0;
+  border-radius: 3px 3px 0px 0;
   color: #fff;
+}
+
+.editor.theirs.waiting .title {
+  background: #666;
 }
 
 .title input:disabled {
@@ -107,6 +119,10 @@ div.CodeMirror pre.CodeMirror-cursor {
 
 .readonly .CodeMirror {
   border: 3px solid #7dd488;
+}
+
+.waiting .CodeMirror {
+  border: 3px solid #666;
 }
 
 .lds-ripple {

@@ -116,6 +116,7 @@ sendEditors editors =
                , "input" .= editorInput editor
                , "output" .= editorOutput editor
                , "selection" .= editorSelection editor
+               , "connected" .= editorConnected editor
                ])
           editors))
 

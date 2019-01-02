@@ -59,22 +59,28 @@ component sessionId =
                ("editor " <>
                 if editor . session == sessionId
                   then "mine"
-                  else "theirs"))
+                  else "theirs " <>
+                       if editor . title == ""
+                         then "waiting"
+                         else ""))
         ]
         [ HH.div
             [HP.class_ (ClassName "title")]
             [ if editor . session == sessionId
-                 then HH.input
-                        [ HP.value (editor . title)
-                        , HP.type_ HP.InputText
-                        , HP.placeholder
-                            (if editor . session == sessionId
-                               then "Type your name here"
-                               else "")
-                        , E.onValueInput (\i -> Just (SetEditorTitle i unit))
-                        , HP.disabled (not (editor . session == sessionId))
-                        ]
-                 else HH.text (editor . title)
+                then HH.input
+                       [ HP.value (editor . title)
+                       , HP.type_ HP.InputText
+                       , HP.placeholder
+                           (if editor . session == sessionId
+                              then "Type your name here"
+                              else "")
+                       , E.onValueInput (\i -> Just (SetEditorTitle i unit))
+                       , HP.disabled (not (editor . session == sessionId))
+                       ]
+                else HH.text
+                       (if editor . title == ""
+                          then "[Waiting for other participant]"
+                          else editor . title)
             ]
         , HH.div
             [ HP.class_
