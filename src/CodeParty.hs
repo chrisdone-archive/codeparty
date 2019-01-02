@@ -66,8 +66,9 @@ interaction roomId = do
   sessionId <- getSessionId
   broadcaster <- fmap appChans getYesod
   updates <- liftIO (atomically (dupTChan broadcaster))
+  lift (createEditorIfMissing roomId sessionId)
   signalUpdated roomId
-  race_ (receiveLoop roomId sessionId) (sendLoop updates roomId sessionId)
+  race_ (receiveLoop roomId sessionId) (sendLoop updates roomId)
 
 receiveLoop :: Room -> SessionId -> WebSocketsT Handler Void
 receiveLoop roomId sessionId = do
@@ -95,14 +96,14 @@ receiveLoop roomId sessionId = do
                       signalUpdated roomId)
               Nothing -> error ("Invalid incoming update!" <> show str))
 
-sendLoop :: TChan Room -> Room -> SessionId -> WebSocketsT Handler Void
-sendLoop updates roomId sessionId = do
+sendLoop :: TChan Room -> Room -> WebSocketsT Handler Void
+sendLoop updates roomId = do
   forever
     (do room <- liftIO (atomically (readTChan updates))
         when
           (room == roomId)
-          (do editors <- lift (getEditorsAutoCreatingThisOne roomId sessionId)
-              sendEditors editors))
+          (do editors <- lift (runDB (getEditors roomId))
+              sendEditors (filter editorConnected (map entityVal editors))))
 
 sendEditors :: [Editor] -> WebSocketsT Handler ()
 sendEditors editors =
@@ -132,34 +133,34 @@ getSessionId = do
     Nothing -> error "Invalid sessionid"
     Just s -> pure s
 
-getEditorsAutoCreatingThisOne :: Room -> SessionId -> Handler [Editor]
-getEditorsAutoCreatingThisOne roomid sessionId = do
-  now <- liftIO getCurrentTime
+createEditorIfMissing :: Room -> SessionId -> Handler ()
+createEditorIfMissing roomid sessionId =
   runDB
-    (do editors <- getEditors roomid
+    (do now <- liftIO getCurrentTime
+        updateWhere [EditorUuid ==. sessionId] [EditorConnected =. True]
+        editors <- getEditors roomid
         case find (\(Entity _ editor) -> editorUuid editor == sessionId) editors of
-          Nothing -> do
-            let newEditor =
-                  Editor
-                    { editorSelection =
-                        Selection
-                          { selectionStartLine = 1
-                          , selectionStartCh = 1
-                          , selectionEndLine = 1
-                          , selectionEndCh = 1
-                          }
-                    , editorRoom = roomid
-                    , editorUuid = sessionId
-                    , editorCreated = now
-                    , editorEdited = now
-                    , editorTitle = ""
-                    , editorInput = ""
-                    , editorOutput = ""
-                    , editorConnected = True
-                    }
-            _ <- insert newEditor
-            pure (map entityVal editors ++ [newEditor])
-          Just {} -> pure (map entityVal editors))
+          Nothing ->
+            void
+              (insert
+                 Editor
+                   { editorSelection =
+                       Selection
+                         { selectionStartLine = 1
+                         , selectionStartCh = 1
+                         , selectionEndLine = 1
+                         , selectionEndCh = 1
+                         }
+                   , editorRoom = roomid
+                   , editorUuid = sessionId
+                   , editorCreated = now
+                   , editorEdited = now
+                   , editorTitle = ""
+                   , editorInput = ""
+                   , editorOutput = ""
+                   , editorConnected = True
+                   })
+          Just {} -> pure ())
 
 getEditors ::
      (BaseBackend backend ~ SqlBackend, MonadIO m, PersistQueryRead backend)
