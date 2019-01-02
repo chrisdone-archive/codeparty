@@ -26,6 +26,7 @@ share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
     input Text
     selection Selection
     output Text
+    connected Bool
     deriving Eq
     deriving Show
  |]

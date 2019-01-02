@@ -19,6 +19,7 @@ data Editor = Editor
   , input   :: String
   , output  :: String
   , selection :: Selection
+  , connected :: Boolean
   }
 
 instance editorJson2 :: EncodeJson Editor where
@@ -42,7 +43,8 @@ instance editorJson :: DecodeJson Editor where
     input <- objectLookup "input" o
     output <- objectLookup "output" o
     selection <- objectLookup "selection" o
-    pure (Editor {session, title, input, output, selection})
+    connected <- objectLookup "connected" o
+    pure (Editor {session, title, input, output, selection, connected})
 
 newtype Selection = Selection CodeMirror.Range
 

@@ -72,19 +72,28 @@ interaction roomId = do
 receiveLoop :: Room -> SessionId -> WebSocketsT Handler Void
 receiveLoop roomId sessionId = do
   forever
-    (do str <- receiveData
-        case decode str of
-          Just eupdate ->
+    (do mstr <- receiveDataE
+        case mstr of
+          Left _ ->
             lift
               (do runDB
                     (updateWhere
                        [EditorUuid ==. sessionId]
-                       [ EditorTitle =. eupdateTitle eupdate
-                       , EditorInput =. eupdateInput eupdate
-                       , EditorSelection =. eupdateSelection eupdate
-                       ])
+                       [EditorConnected =. False])
                   signalUpdated roomId)
-          Nothing -> error ("Invalid incoming update!" <> show str))
+          Right str ->
+            case decode str of
+              Just eupdate ->
+                lift
+                  (do runDB
+                        (updateWhere
+                           [EditorUuid ==. sessionId]
+                           [ EditorTitle =. eupdateTitle eupdate
+                           , EditorInput =. eupdateInput eupdate
+                           , EditorSelection =. eupdateSelection eupdate
+                           ])
+                      signalUpdated roomId)
+              Nothing -> error ("Invalid incoming update!" <> show str))
 
 sendLoop :: TChan Room -> Room -> SessionId -> WebSocketsT Handler Void
 sendLoop updates roomId sessionId = do
@@ -107,6 +116,7 @@ sendEditors editors =
                , "input" .= editorInput editor
                , "output" .= editorOutput editor
                , "selection" .= editorSelection editor
+               , "connected" .= editorConnected editor
                ])
           editors))
 
@@ -145,6 +155,7 @@ getEditorsAutoCreatingThisOne roomid sessionId = do
                     , editorTitle = ""
                     , editorInput = ""
                     , editorOutput = ""
+                    , editorConnected = True
                     }
             _ <- insert newEditor
             pure (map entityVal editors ++ [newEditor])
