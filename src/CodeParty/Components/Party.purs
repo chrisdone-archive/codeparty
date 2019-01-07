@@ -2,19 +2,24 @@
 
 module CodeParty.Components.Party where
 
+import Data.Either.Nested (Either2)
 import CodeParty.Components.Editor as Editor
-import CodeParty.Types
+import CodeParty.Components.Viewer as Viewer
+import CodeParty.Types (Editor(..), Room, Selection, SessionId, objectLookup)
 import Data.Argonaut.Core as Json
-import Data.Argonaut.Encode.Class (class EncodeJson, encodeJson)
+import Data.Argonaut.Decode.Class (class DecodeJson, decodeJson)
+import Data.Argonaut.Encode.Class (class EncodeJson)
 import Data.Argonaut.Encode.Combinators ((:=), (~>))
 import Data.Array as Array
+import Data.Either
 import Data.Either (either)
+import Data.Functor.Coproduct.Nested (Coproduct2)
 import Data.Maybe (Maybe(..))
-import Data.Monoid ((<>))
 import Data.Symbol (SProxy(..))
 import Effect.Aff (Aff)
 import Effect.Console (log)
 import Halogen as H
+import Halogen.Component.ChildPath (cp1, cp2, cp3, cp4)
 import Halogen.HTML as HH
 import Halogen.HTML.Core (ClassName(..))
 import Halogen.HTML.Events as E
@@ -34,16 +39,35 @@ data State = State
   { sessionId :: SessionId
   , room :: Room
   , mwebsocket :: Maybe Websocket.Websocket
-  , editors :: Array Editor
+  , viewers :: Array Editor
+  , editor :: Maybe Editor
   , layout :: Layout
   }
 
 data Query a
   = Initialize a
   | WebsocketError String a
-  | IncomingEditorsUpdate (Array Editor) a
+  | WebsocketIncoming WebsocketIncoming a
   | OutgoingEditorUpdate Editor a
   | SetLayout Layout a
+
+data WebsocketIncoming
+  = InitializeEditor Editor
+  | IncomingViewersUpdate (Array Editor)
+  | Unknown
+
+instance websocketincomingJson :: DecodeJson WebsocketIncoming where
+  decodeJson i = do
+    o <- decodeJson i
+    tag <- objectLookup "tag" o
+    case tag of
+      "InitializeEditor" -> do
+        e <- objectLookup "editor" o
+        pure (InitializeEditor e)
+      "IncomingViewersUpdate" -> do
+        vs <- objectLookup "viewers" o
+        pure (IncomingViewersUpdate vs)
+      _ -> pure Unknown
 
 data Layout = OneColumn | TwoColumn | ThreeColumn
 derive instance eqLayout :: Eq Layout
@@ -91,35 +115,37 @@ component =
       State
         { sessionId: i . sessionId
         , room: i . room
-        , editors: []
+        , viewers: []
         , mwebsocket: Nothing
         , layout: OneColumn
+        , editor: Nothing
         }
     render (State state) =
       HH.div_
-        ([ if Array.null (state . editors)
-             then HH.div
-                    [HP.class_ (ClassName "lds-ripple")]
-                    [HH.div_ [], HH.div_ []]
-             else HH.div
-                    [HP.class_ (ClassName "layout-choice")]
-                    (map
-                       (\(LayoutChoice choice) ->
-                          HH.div
-                            [ HP.class_
-                                (ClassName
-                                   ("fas " <> choice . cls <>
-                                    if choice . layout == state . layout
-                                      then " selected"
-                                      else ""))
-                            , E.onClick (E.input_ (SetLayout choice . layout))
-                            ]
-                            [])
-                       [ LayoutChoice {cls: "fa-stop", layout: OneColumn}
-                       , LayoutChoice
-                           {cls: "fa-th-large", layout: TwoColumn}
-                       , LayoutChoice {cls: "fa-th", layout: ThreeColumn}
-                       ])
+        ([ case state . editor of
+             Nothing ->
+               HH.div
+                 [HP.class_ (ClassName "lds-ripple")]
+                 [HH.div_ [], HH.div_ []]
+             Just _ ->
+               HH.div
+                 [HP.class_ (ClassName "layout-choice")]
+                 (map
+                    (\(LayoutChoice choice) ->
+                       HH.div
+                         [ HP.class_
+                             (ClassName
+                                ("fas " <> choice . cls <>
+                                 if choice . layout == state . layout
+                                   then " selected"
+                                   else ""))
+                         , E.onClick (E.input_ (SetLayout choice . layout))
+                         ]
+                         [])
+                    [ LayoutChoice {cls: "fa-stop", layout: OneColumn}
+                    , LayoutChoice {cls: "fa-th-large", layout: TwoColumn}
+                    , LayoutChoice {cls: "fa-th", layout: ThreeColumn}
+                    ])
          , HH.div
              [ HP.class_
                  (ClassName
@@ -129,18 +155,28 @@ component =
                        TwoColumn -> "two-column"
                        ThreeColumn -> "three-column"))
              ]
-             (map
+             ((case state . editor of
+                 Nothing -> []
+                 Just e@(Editor editor) ->
+                   [ HH.slot'
+                       cp1
+                       (EditorSlot (editor . session))
+                       Editor.component
+                       e
+                       (\e' -> Just (OutgoingEditorUpdate e' unit))
+                   ]) <>
+              map
                 (\e@(Editor editor) ->
-                   HH.slot
+                   HH.slot'
+                     cp2
                      (EditorSlot (editor . session))
-                     (Editor.component (state . sessionId))
+                     Viewer.component
                      e
-                     (\e' -> Just (OutgoingEditorUpdate e' unit)))
-                (Array.sortBy
-                   (comparing (\(Editor e) -> e . session /= state . sessionId))
-                   (state . editors)))
+                     (const Nothing))
+                (state . viewers))
          ])
-    eval :: Query ~> H.ParentDSL State Query Editor.Query EditorSlot Void Aff
+    eval ::
+         Query ~> H.ParentDSL State Query (Coproduct2 Editor.Query Viewer.Query) (Either2 EditorSlot EditorSlot) Void Aff
     eval (SetLayout layout a) = do
       _ <- H.modify (\(State state) -> State (state {layout = layout}))
       pure a
@@ -148,18 +184,24 @@ component =
       State {sessionId} <- H.get
       websocket <- Websocket.connect
       Websocket.send websocket sessionId
-      Websocket.subscribe
-        websocket
-        (either WebsocketError IncomingEditorsUpdate)
+      Websocket.subscribe websocket (either WebsocketError WebsocketIncoming)
       _ <-
         H.modify (\(State state) -> State (state {mwebsocket = Just websocket}))
       pure a
     eval (WebsocketError e a) = do
       H.liftEffect (log ("WebsocketError " <> e))
       pure a
-    eval (IncomingEditorsUpdate editors a) = do
-      _ <- H.modify (\(State state) -> State (state {editors = editors}))
-      pure a
+    eval (WebsocketIncoming cmd a) =
+      case cmd of
+        (IncomingViewersUpdate viewers) -> do
+          _ <- H.modify (\(State state) -> State (state {viewers = viewers}))
+          pure a
+        InitializeEditor editor -> do
+          _ <- H.modify (\(State state) -> State (state {editor = Just editor}))
+          pure a
+        Unknown -> do
+          H.liftEffect (log "WebsocketIncoming_=Unknown")
+          pure a
     eval (OutgoingEditorUpdate (Editor {title, input, selection}) a) = do
       State {mwebsocket} <- H.get
       case mwebsocket of

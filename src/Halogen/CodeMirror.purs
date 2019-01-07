@@ -106,8 +106,16 @@ eval (Initializer a) = do
                       (H.request (\next -> InternalChange info (next Listening)))))))
       H.put (State {codeMirror: Just cm, config: config})
       pure a
-eval (InternalChange text a) = do
-  H.raise (Change text)
+eval (InternalChange change a) = do
+  _ <-
+    H.modify
+      (\(State {codeMirror: cm, config}) ->
+         State
+           { codeMirror: cm
+           , config:
+               config {value = change . value, selection = change . selection}
+           })
+  H.raise (Change change)
   pure a
 eval (Receive config' a) = do
   State {codeMirror: mcm, config} <- H.get

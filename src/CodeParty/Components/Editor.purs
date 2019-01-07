@@ -4,7 +4,6 @@ module CodeParty.Components.Editor where
 
 import CodeParty.Types
 import Data.Maybe (Maybe(..))
-import Data.Monoid ((<>))
 import Data.Symbol (SProxy(..))
 import Effect.Aff (Aff)
 import Halogen as H
@@ -13,21 +12,17 @@ import Halogen.HTML as HH
 import Halogen.HTML.Core (ClassName(..))
 import Halogen.HTML.Events as E
 import Halogen.HTML.Properties as HP
-import Prelude (class Eq, class Ord, type (~>), bind, discard, not, pure, unit, (==))
+import Prelude (class Eq, class Ord, type (~>), bind, discard, pure, unit)
 
 --------------------------------------------------------------------------------
 -- Types
 
-data State = State { editor :: Editor, access :: Access }
-
-data Access = Everything | Output
+data State = State { editor :: Editor }
 
 data Query a
   = SetEditorContent { selection :: Selection, input:: String }
              a
   | SetEditorTitle String a
-  | ReceiveEditor Editor
-                  a
 
 _codeMirror = SProxy :: SProxy "codeMirror"
 
@@ -38,64 +33,42 @@ derive newtype instance ordCodeMirrorSlot :: Ord CodeMirrorSlot
 --------------------------------------------------------------------------------
 -- Component
 
-component :: SessionId -> H.Component HH.HTML Query Editor Editor Aff
-component sessionId =
-  H.parentComponent {initialState: initialState, render, eval, receiver}
+component :: H.Component HH.HTML Query Editor Editor Aff
+component =
+  H.parentComponent {initialState, render, eval, receiver}
   where
-    receiver i = Just (ReceiveEditor i unit)
+    receiver _ = Nothing
     initialState :: Editor -> State
     initialState (Editor e) =
       State
         { editor: Editor e
-        , access:
-            if e . session == sessionId
-              then Output
-              else Everything
         }
     render (State {editor: Editor editor}) =
       HH.div
         [ HP.class_
             (ClassName
-               ("editor " <>
-                if editor . session == sessionId
-                  then "mine"
-                  else "theirs " <>
-                       if editor . title == ""
-                         then "waiting"
-                         else ""))
+               ("editor mine"))
         ]
         [ HH.div
             [HP.class_ (ClassName "title")]
-            [ if editor . session == sessionId
-                then HH.input
-                       [ HP.value (editor . title)
-                       , HP.type_ HP.InputText
-                       , HP.placeholder
-                           (if editor . session == sessionId
-                              then "Type your name here"
-                              else "")
-                       , E.onValueInput (\i -> Just (SetEditorTitle i unit))
-                       , HP.disabled (not (editor . session == sessionId))
-                       ]
-                else HH.text
-                       (if editor . title == ""
-                          then "[Waiting for other participant]"
-                          else editor . title)
+            [ HH.input
+                [ HP.value (editor . title)
+                , HP.type_ HP.InputText
+                , HP.placeholder"Type your name here"
+                , E.onValueInput (\i -> Just (SetEditorTitle i unit))
+                ]
             ]
         , HH.div
             [ HP.class_
                 (ClassName
-                   ("input " <>
-                    if editor . session == sessionId
-                      then "editable"
-                      else "readonly"))
+                   ("input editable"))
             ]
             [ HH.slot
                 (CodeMirrorSlot (editor . session))
                 CodeMirror.component
                 (CodeMirror.Input
                    { value: editor . input
-                   , readOnly: not (editor . session == sessionId)
+                   , readOnly: false
                    , theme: "tomorrow-night-eighties"
                    , mode: "haskell"
                    , selection:
@@ -141,14 +114,4 @@ component sessionId =
                             (e {selection = u . selection, input = u . input})
                   }))
       H.raise editor
-      pure a
-    eval (ReceiveEditor (Editor editor') a) = do
-      State {editor: Editor editor, access} <- H.get
-      case access of
-        Output -> do
-          H.put
-            (State
-               {editor: Editor (editor {output = editor' . output}), access})
-        Everything -> do
-          H.put (State {editor: Editor editor', access})
       pure a

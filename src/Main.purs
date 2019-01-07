@@ -3,6 +3,7 @@ module Main where
 import CodeParty.Components.Party as Party
 import CodeParty.Session
 import CodeParty.Types
+import Data.Maybe
 import Effect (Effect)
 import Effect.Console
 import Halogen.Aff as HA
