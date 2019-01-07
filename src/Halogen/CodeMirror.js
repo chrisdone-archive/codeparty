@@ -46,10 +46,12 @@ exports.getSelection = function(codemirror){
   };
 }
 
-exports.setSelection = function(codemirror){
-  return function(sel){
+exports.scrollToLine = function(codemirror) {
+  return function(i){
     return function(){
-      return codemirror.setSelection(sel.anchor, sel.head);
+      var t = codemirror.charCoords({line: i, ch: 0}, "local").top;
+      var middleHeight = codemirror.getScrollerElement().offsetHeight / 2;
+      codemirror.scrollTo(null, t - middleHeight - 5);
     };
   };
 }

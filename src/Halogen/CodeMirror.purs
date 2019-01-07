@@ -117,7 +117,7 @@ eval (Receive config' a) = do
         then H.liftEffect (setValue cm (config' . value))
         else pure unit
       if config' . selection /= config . selection
-        then H.liftEffect (setSelection cm (config' . selection))
+        then H.liftEffect (scrollToLine cm (config . selection . head . line))
         else pure unit
     Nothing -> pure unit
   H.put (State {codeMirror: mcm, config: config'})
@@ -150,7 +150,7 @@ foreign import setValue
   -> String
   -> Effect Unit
 
-foreign import setSelection
+foreign import scrollToLine
   :: CodeMirror
-  -> Range
+  -> Int
   -> Effect Unit
