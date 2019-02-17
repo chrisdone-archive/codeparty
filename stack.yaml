@@ -1,14 +1,16 @@
-resolver: lts-11.13
+resolver: lts-12.12
 
 packages:
 - .
 - location:
     git: https://github.com/purescript/purescript.git
-    commit: f8ca834ebe3d8e5d484e5b55b5d1b8b6f0a783a2
-  extra-dep: false
+    # Version 0.12.2: https://github.com/purescript/purescript/commit/62f9b7f46f9caa3e4bec84d6df3ed50867503820
+    commit: 62f9b7f46f9caa3e4bec84d6df3ed50867503820
+  extra-dep: False
 - location:
     git: https://github.com/purescript/psc-package.git
-    commit: 1529f28a70a2b65b02efe4ddd6e879ced1a85b20
+    # Version 0.5.1 https://github.com/purescript/psc-package/commit/93bf67d8738c0b6cfce209338dba9749a4a53415
+    commit: 93bf67d8738c0b6cfce209338dba9749a4a53415
   extra-dep: false
 - location:
     git: https://github.com/bitemyapp/esqueleto.git
