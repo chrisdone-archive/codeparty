@@ -76,7 +76,7 @@ interaction roomId = do
   broadcaster <- fmap appChans getYesod
   updates <- liftIO (atomically (dupTChan broadcaster))
   e <- lift (createEditorIfMissing roomId sessionId)
-  sendEditor e
+  initializeEditor e
   race_ (receiveLoop roomId sessionId) (sendLoop sessionId updates roomId)
 
 receiveLoop :: Room -> SessionId -> WebSocketsT Handler Void
@@ -118,8 +118,8 @@ sendLoop sessionId updates roomId = do
                    (\e -> editorConnected e now)
                    (filter ((/= sessionId) . editorUuid) (map entityVal editors)))))
 
-sendEditor :: Editor -> WebSocketsT Handler ()
-sendEditor editor =
+initializeEditor :: Editor -> WebSocketsT Handler ()
+initializeEditor editor =
   do now <- liftIO getCurrentTime
      sendTextData
        (encode
