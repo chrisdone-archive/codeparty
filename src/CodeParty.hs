@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS -fno-warn-orphans #-}
 {-# LANGUAGE LambdaCase #-}
@@ -53,7 +54,12 @@ postRoomR roomid = do
   case msessionId of
     Nothing -> error "Need Authorization header."
     Just sessionId ->
-      handleEUpdate roomid (SessionId (T.decodeUtf8 sessionId)) eupdate
+      do let sessId = (SessionId (T.decodeUtf8 sessionId))
+         _ <- createEditorIfMissing roomid (FromPostRequest sessId)
+         handleEUpdate
+           roomid
+           sessId
+           (FromPostRequest eupdate)
 
 getRoomR :: Room -> Handler LucidHtml
 getRoomR roomid = do
@@ -75,7 +81,7 @@ interaction roomId = do
   sessionId <- getSessionId
   broadcaster <- fmap appChans getYesod
   updates <- liftIO (atomically (dupTChan broadcaster))
-  e <- lift (createEditorIfMissing roomId sessionId)
+  e <- lift (createEditorIfMissing roomId (FromWebSocket sessionId))
   initializeEditor e
   race_ (receiveLoop roomId sessionId) (sendLoop sessionId updates roomId)
 
@@ -87,11 +93,11 @@ receiveLoop roomId sessionId = do
           Left _ -> pure ()
           Right str ->
             case decode str of
-              Just eupdate -> lift (handleEUpdate roomId sessionId eupdate)
+              Just eupdate -> lift (handleEUpdate roomId sessionId (FromWebSocket eupdate))
               Nothing -> error ("Invalid incoming update!" <> show str))
 
-handleEUpdate :: Room -> SessionId -> Eupdate -> HandlerFor App ()
-handleEUpdate roomId sessionId eupdate = do
+handleEUpdate :: Room -> SessionId -> Originated Eupdate -> HandlerFor App ()
+handleEUpdate roomId sessionId originated = do
   now <- liftIO getCurrentTime
   runDB
     (updateWhere
@@ -103,20 +109,27 @@ handleEUpdate roomId sessionId eupdate = do
         [ EditorSelection =. selection
         | Just selection <- [eupdateSelection eupdate]
         ]))
-  signalUpdated roomId
+  signalUpdated (fmap (const roomId) originated)
+  where eupdate = unOriginated originated
 
-sendLoop :: SessionId -> TChan Room -> Room -> WebSocketsT Handler Void
+sendLoop ::
+     SessionId -> TChan (Originated Room) -> Room -> WebSocketsT Handler Void
 sendLoop sessionId updates roomId = do
   forever
     (do room <- liftIO (atomically (readTChan updates))
         when
-          (room == roomId)
+          (unOriginated room == roomId)
           (do now <- liftIO getCurrentTime
               editors <- lift (runDB (getEditors roomId))
               sendEditors
                 (filter
                    (\e -> editorConnected e now)
-                   (filter ((/= sessionId) . editorUuid) (map entityVal editors)))))
+                   (filter
+                      (\e ->
+                         case room of
+                           FromWebSocket {} -> editorUuid e /= sessionId
+                           FromPostRequest {} -> True)
+                      (map entityVal editors)))))
 
 initializeEditor :: Editor -> WebSocketsT Handler ()
 initializeEditor editor =
@@ -160,7 +173,7 @@ sendEditors editors =
 editorConnected :: Editor -> UTCTime -> Bool
 editorConnected editor now = diffUTCTime now (editorActivity editor) < 60 * 30
 
-signalUpdated :: (HandlerSite m ~ App, MonadHandler m) => Room -> m ()
+signalUpdated :: (HandlerSite m ~ App, MonadHandler m) => Originated Room -> m ()
 signalUpdated roomId = do
   updates <- fmap appChans getYesod
   liftIO (atomically (writeTChan updates roomId))
@@ -172,8 +185,8 @@ getSessionId = do
     Nothing -> error "Invalid sessionid"
     Just s -> pure s
 
-createEditorIfMissing :: Room -> SessionId -> Handler Editor
-createEditorIfMissing roomid sessionId = do
+createEditorIfMissing :: Room -> Originated SessionId -> Handler Editor
+createEditorIfMissing roomid osessionId = do
   e <-
     runDB
       (do now <- liftIO getCurrentTime
@@ -203,8 +216,9 @@ createEditorIfMissing roomid sessionId = do
                         , editorOutput = ""
                         }
             Just e -> pure (entityVal e))
-  signalUpdated roomid
+  signalUpdated (fmap (const roomid) osessionId)
   pure e
+  where sessionId = unOriginated osessionId
 
 getEditors ::
      (BaseBackend backend ~ SqlBackend, MonadIO m, PersistQueryRead backend)

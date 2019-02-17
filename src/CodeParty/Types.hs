@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -12,7 +14,6 @@
 module CodeParty.Types where
 
 import           Control.Concurrent.STM
-import           Data.Monoid
 import           Data.Pool
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -30,8 +31,19 @@ data App = App
   , appRoot :: Text
   , appSiteManager :: SiteManager
   , appStatic :: EmbeddedStatic
-  , appChans :: TChan Room
+  , appChans :: TChan (Originated Room)
   }
+
+data Originated e
+  = FromPostRequest e
+  | FromWebSocket e
+  deriving (Functor)
+
+unOriginated :: Originated e -> e
+unOriginated =
+  \case
+    FromWebSocket e -> e
+    FromPostRequest e -> e
 
 newtype Room = Room {unRoom :: Text}
   deriving (PersistFieldSql, PersistField, Show, Read, Eq, PathPiece, FromJSON)
