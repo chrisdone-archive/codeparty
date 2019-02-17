@@ -40,9 +40,13 @@ data State = State
   , room :: Room
   , mwebsocket :: Maybe Websocket.Websocket
   , viewers :: Array Editor
-  , editor :: Maybe Editor
+  , editor :: Maybe EditorMode
   , layout :: Layout
   }
+
+data EditorMode
+  = NormalMode Editor
+  | ReadOnlyMode Editor
 
 data Query a
   = Initialize a
@@ -54,6 +58,7 @@ data Query a
 data WebsocketIncoming
   = InitializeEditor Editor
   | IncomingViewersUpdate (Array Editor)
+  | SetReadonlyEditor Editor
   | Unknown
 
 instance websocketincomingJson :: DecodeJson WebsocketIncoming where
@@ -64,6 +69,9 @@ instance websocketincomingJson :: DecodeJson WebsocketIncoming where
       "InitializeEditor" -> do
         e <- objectLookup "editor" o
         pure (InitializeEditor e)
+      "SetReadonlyEditor" -> do
+        e <- objectLookup "editor" o
+        pure (SetReadonlyEditor e)
       "IncomingViewersUpdate" -> do
         vs <- objectLookup "viewers" o
         pure (IncomingViewersUpdate vs)
@@ -168,7 +176,15 @@ component =
              ]
              ((case state . editor of
                  Nothing -> []
-                 Just e@(Editor editor) ->
+                 Just (ReadOnlyMode e@(Editor editor)) ->
+                   [ HH.slot'
+                       cp2
+                       (EditorSlot (editor . session))
+                       Viewer.component
+                       e
+                       (const Nothing)
+                   ]
+                 Just (NormalMode e@(Editor editor)) ->
                    [ HH.slot'
                        cp1
                        (EditorSlot (editor . session))
@@ -208,7 +224,10 @@ component =
           _ <- H.modify (\(State state) -> State (state {viewers = viewers}))
           pure a
         InitializeEditor editor -> do
-          _ <- H.modify (\(State state) -> State (state {editor = Just editor}))
+          _ <- H.modify (\(State state) -> State (state {editor = Just (NormalMode editor)}))
+          pure a
+        SetReadonlyEditor editor -> do
+          _ <- H.modify (\(State state) -> State (state {editor = Just (ReadOnlyMode editor)}))
           pure a
         Unknown -> do
           H.liftEffect (log "WebsocketIncoming: Unknown")

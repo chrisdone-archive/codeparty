@@ -55,11 +55,11 @@ postRoomR roomid = do
     Nothing -> error "Need Authorization header."
     Just sessionId ->
       do let sessId = (SessionId (T.decodeUtf8 sessionId))
-         _ <- createEditorIfMissing roomid (FromPostRequest sessId)
+         _ <- createEditorIfMissing roomid (FromPostRequest sessId sessId)
          handleEUpdate
            roomid
            sessId
-           (FromPostRequest eupdate)
+           (FromPostRequest sessId eupdate)
 
 getRoomR :: Room -> Handler LucidHtml
 getRoomR roomid = do
@@ -121,54 +121,77 @@ sendLoop sessionId updates roomId = do
           (unOriginated room == roomId)
           (do now <- liftIO getCurrentTime
               editors <- lift (runDB (getEditors roomId))
+              case room of
+                FromWebSocket {} -> pure ()
+                FromPostRequest originSessionId _ ->
+                  mapM_
+                    setReadonlyEditor
+                    (filter
+                       (\e ->
+                          editorUuid e == originSessionId &&
+                          sessionId == originSessionId)
+                       (map entityVal editors))
               sendEditors
                 (filter
-                   (\e -> editorConnected e now)
-                   (filter
-                      (\e ->
-                         case room of
-                           FromWebSocket {} -> editorUuid e /= sessionId
-                           FromPostRequest {} -> True)
-                      (map entityVal editors)))))
+                   (\e -> editorUuid e /= sessionId && editorConnected e now)
+                   (map entityVal editors))))
 
 initializeEditor :: Editor -> WebSocketsT Handler ()
-initializeEditor editor =
-  do now <- liftIO getCurrentTime
-     sendTextData
-       (encode
-          (object
-             [ "tag" .= ("InitializeEditor" :: Text)
-             , "editor" .=
-               object
-                 [ "session" .= editorUuid editor
-                 , "title" .= editorTitle editor
-                 , "input" .= editorInput editor
-                 , "output" .= editorOutput editor
-                 , "selection" .= editorSelection editor
-                 , "connected" .= editorConnected editor now
-                 ]
-             ]))
+initializeEditor editor = do
+  now <- liftIO getCurrentTime
+  sendTextData
+    (encode
+       (object
+          [ "tag" .= ("InitializeEditor" :: Text)
+          , "editor" .=
+            object
+              [ "session" .= editorUuid editor
+              , "title" .= editorTitle editor
+              , "input" .= editorInput editor
+              , "output" .= editorOutput editor
+              , "selection" .= editorSelection editor
+              , "connected" .= editorConnected editor now
+              ]
+          ]))
+
+setReadonlyEditor :: Editor -> WebSocketsT Handler ()
+setReadonlyEditor editor = do
+  now <- liftIO getCurrentTime
+  sendTextData
+    (encode
+       (object
+          [ "tag" .= ("SetReadonlyEditor" :: Text)
+          , "editor" .=
+            object
+              [ "session" .= editorUuid editor
+              , "title" .= editorTitle editor
+              , "input" .= editorInput editor
+              , "output" .= editorOutput editor
+              , "selection" .= editorSelection editor
+              , "connected" .= editorConnected editor now
+              ]
+          ]))
 
 sendEditors :: [Editor] -> WebSocketsT Handler ()
-sendEditors editors =
-  do now <- liftIO getCurrentTime
-     sendTextData
-       (encode
-          (object
-             [ "tag" .= ("IncomingViewersUpdate" :: Text)
-             , "viewers" .=
-               (map
-                  (\editor ->
-                     object
-                       [ "session" .= editorUuid editor
-                       , "title" .= editorTitle editor
-                       , "input" .= editorInput editor
-                       , "output" .= editorOutput editor
-                       , "selection" .= editorSelection editor
-                       , "connected" .= editorConnected editor now
-                       ])
-                  editors)
-             ]))
+sendEditors editors = do
+  now <- liftIO getCurrentTime
+  sendTextData
+    (encode
+       (object
+          [ "tag" .= ("IncomingViewersUpdate" :: Text)
+          , "viewers" .=
+            (map
+               (\editor ->
+                  object
+                    [ "session" .= editorUuid editor
+                    , "title" .= editorTitle editor
+                    , "input" .= editorInput editor
+                    , "output" .= editorOutput editor
+                    , "selection" .= editorSelection editor
+                    , "connected" .= editorConnected editor now
+                    ])
+               editors)
+          ]))
 
 editorConnected :: Editor -> UTCTime -> Bool
 editorConnected editor now = diffUTCTime now (editorActivity editor) < 60 * 30

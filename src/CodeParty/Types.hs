@@ -35,7 +35,7 @@ data App = App
   }
 
 data Originated e
-  = FromPostRequest e
+  = FromPostRequest SessionId e
   | FromWebSocket e
   deriving (Functor)
 
@@ -43,7 +43,7 @@ unOriginated :: Originated e -> e
 unOriginated =
   \case
     FromWebSocket e -> e
-    FromPostRequest e -> e
+    FromPostRequest _ e -> e
 
 newtype Room = Room {unRoom :: Text}
   deriving (PersistFieldSql, PersistField, Show, Read, Eq, PathPiece, FromJSON)
