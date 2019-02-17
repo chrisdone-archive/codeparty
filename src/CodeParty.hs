@@ -36,7 +36,7 @@ import           Yesod.WebSockets
 data Eupdate = Eupdate
   { eupdateTitle :: Text
   , eupdateInput :: Text
-  , eupdateSelection :: Selection
+  , eupdateSelection :: Maybe Selection
   }
 
 instance FromJSON Eupdate where
@@ -96,11 +96,13 @@ handleEUpdate roomId sessionId eupdate = do
   runDB
     (updateWhere
        [EditorUuid ==. sessionId]
-       [ EditorTitle =. eupdateTitle eupdate
-       , EditorInput =. eupdateInput eupdate
-       , EditorSelection =. eupdateSelection eupdate
-       , EditorActivity =. now
-       ])
+       ([ EditorTitle =. eupdateTitle eupdate
+        , EditorInput =. eupdateInput eupdate
+        , EditorActivity =. now
+        ] ++
+        [ EditorSelection =. selection
+        | Just selection <- [eupdateSelection eupdate]
+        ]))
   signalUpdated roomId
 
 sendLoop :: SessionId -> TChan Room -> Room -> WebSocketsT Handler Void
