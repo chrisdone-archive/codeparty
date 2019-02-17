@@ -22,7 +22,7 @@ import Yesod.EmbeddedStatic
 
 mkYesodData "App" [parseRoutes|
   /static StaticR EmbeddedStatic appStatic
-  !/#Room RoomR GET
+  !/#Room RoomR GET POST
 |]
 
 mkEmbeddedStatic development "embeddedStatic" [embedDir "static"]
@@ -40,7 +40,3 @@ instance YesodPersist App where
   runDB act = do
     App {appPool = pool} <- getYesod
     runSqlPool act pool
-
-
-
-

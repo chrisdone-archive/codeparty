@@ -13,8 +13,8 @@
 {-# LANGUAGE QuasiQuotes #-}
 
 module CodeParty where
+import qualified Data.Text.Encoding as T
 import           Data.Time
-import           Data.Monoid
 import           CodeParty.Foundation
 import           CodeParty.Model
 import           CodeParty.Types
@@ -26,7 +26,6 @@ import           Data.List (find)
 import           Data.Text (Text)
 import qualified Data.Text.Lazy as LT
 import qualified Data.Text.Lazy.Encoding as LT
-import           Data.Time
 import           Data.Void
 import           Database.Persist.Sql
 import           Lucid
@@ -46,6 +45,15 @@ instance FromJSON Eupdate where
     Eupdate <$> o.: "title" <*> o.: "input" <*> o.: "selection"
 
 mkYesodDispatch "App" resourcesApp
+
+postRoomR :: Room -> Handler ()
+postRoomR roomid = do
+  eupdate <- requireJsonBody
+  msessionId <- lookupHeader "Authorization"
+  case msessionId of
+    Nothing -> error "Need Authorization header."
+    Just sessionId ->
+      handleEUpdate roomid (SessionId (T.decodeUtf8 sessionId)) eupdate
 
 getRoomR :: Room -> Handler LucidHtml
 getRoomR roomid = do
@@ -76,23 +84,24 @@ receiveLoop roomId sessionId = do
   forever
     (do mstr <- receiveDataE
         case mstr of
-          Left _ ->
-            pure ()
+          Left _ -> pure ()
           Right str ->
             case decode str of
-              Just eupdate ->
-                do now <- liftIO getCurrentTime
-                   lift
-                     (do runDB
-                           (updateWhere
-                              [EditorUuid ==. sessionId]
-                              [ EditorTitle =. eupdateTitle eupdate
-                              , EditorInput =. eupdateInput eupdate
-                              , EditorSelection =. eupdateSelection eupdate
-                              , EditorActivity =. now
-                              ])
-                         signalUpdated roomId)
+              Just eupdate -> lift (handleEUpdate roomId sessionId eupdate)
               Nothing -> error ("Invalid incoming update!" <> show str))
+
+handleEUpdate :: Room -> SessionId -> Eupdate -> HandlerFor App ()
+handleEUpdate roomId sessionId eupdate = do
+  now <- liftIO getCurrentTime
+  runDB
+    (updateWhere
+       [EditorUuid ==. sessionId]
+       [ EditorTitle =. eupdateTitle eupdate
+       , EditorInput =. eupdateInput eupdate
+       , EditorSelection =. eupdateSelection eupdate
+       , EditorActivity =. now
+       ])
+  signalUpdated roomId
 
 sendLoop :: SessionId -> TChan Room -> Room -> WebSocketsT Handler Void
 sendLoop sessionId updates roomId = do
