@@ -5,7 +5,7 @@ module CodeParty.Components.Party where
 import Data.Either.Nested (Either2)
 import CodeParty.Components.Editor as Editor
 import CodeParty.Components.Viewer as Viewer
-import CodeParty.Types (Editor(..), Room, Selection, SessionId, objectLookup)
+import CodeParty.Types (Editor(..), Room, Selection, SessionId(..), objectLookup)
 import Data.Argonaut.Core as Json
 import Data.Argonaut.Decode.Class (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode.Class (class EncodeJson)
@@ -145,7 +145,18 @@ component =
                     [ LayoutChoice {cls: "fa-stop", layout: OneColumn}
                     , LayoutChoice {cls: "fa-th-large", layout: TwoColumn}
                     , LayoutChoice {cls: "fa-th", layout: ThreeColumn}
-                    ])
+                    ] <>
+                  [ HH.div
+                      [HP.class_ (ClassName "token-section")]
+                      [ HH.text "Your token: "
+                      , HH.span
+                          [HP.class_ (ClassName "token")]
+                          [ HH.text
+                              (let SessionId s = state . sessionId
+                                in s)
+                          ]
+                      ]
+                  ])
          , HH.div
              [ HP.class_
                  (ClassName
@@ -200,7 +211,7 @@ component =
           _ <- H.modify (\(State state) -> State (state {editor = Just editor}))
           pure a
         Unknown -> do
-          H.liftEffect (log "WebsocketIncoming_=Unknown")
+          H.liftEffect (log "WebsocketIncoming: Unknown")
           pure a
     eval (OutgoingEditorUpdate (Editor {title, input, selection}) a) = do
       State {mwebsocket} <- H.get

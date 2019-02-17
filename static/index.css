@@ -191,3 +191,8 @@ div.CodeMirror pre.CodeMirror-cursor {
 .cm-number {
   color: #7a00ff;
 }
+
+.token-section {
+  font-family: monospace;
+  display: inline-block
+}
