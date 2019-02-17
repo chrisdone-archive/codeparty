@@ -37,6 +37,7 @@ body {
   padding: 5px;
   line-height: 20px;
   height: 30px;
+  font-size: 13px;
   background: #1d80d4;
   border: 0;
   border-radius: 3px 3px 0px 0;
@@ -50,7 +51,7 @@ body {
   width: auto;
   padding: 5px;
   line-height: 20px;
-  font-size: 1ex;
+  font-size: 13px;
   border: 0;
   border-radius: 3px 3px 0px 0;
   color: #fff;
