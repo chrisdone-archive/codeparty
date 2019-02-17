@@ -27,6 +27,7 @@ library
                      CodeParty.Types
                      CodeParty.Model
                      CodeParty.Foundation
+                     Development
   ghc-options:       -Wall
   build-depends:       base
                      , monad-logger
@@ -84,4 +85,22 @@ executable codeparty-build
   hs-source-dirs: app
   main-is: build-ps.hs
   ghc-options: -O0 -Wall
+  default-language: Haskell2010
+
+executable codeparty
+  build-depends: base
+       , http-client-tls
+       , http-client
+       , bytestring
+       , aeson
+       , text
+       , fsnotify
+       , optparse-simple
+       , filepath
+       , directory
+       , http-types
+  hs-source-dirs: app
+  main-is: codeparty.hs
+  ghc-options: -Wall -threaded -static -fPIC
+  ld-options: -static
   default-language: Haskell2010
