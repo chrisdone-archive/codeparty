@@ -13,6 +13,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 
 module CodeParty where
+import           Data.Time
 import           Data.Monoid
 import           CodeParty.Foundation
 import           CodeParty.Model
@@ -76,24 +77,21 @@ receiveLoop roomId sessionId = do
     (do mstr <- receiveDataE
         case mstr of
           Left _ ->
-            lift
-              (do runDB
-                    (updateWhere
-                       [EditorUuid ==. sessionId]
-                       [EditorConnected =. False])
-                  signalUpdated roomId)
+            pure ()
           Right str ->
             case decode str of
               Just eupdate ->
-                lift
-                  (do runDB
-                        (updateWhere
-                           [EditorUuid ==. sessionId]
-                           [ EditorTitle =. eupdateTitle eupdate
-                           , EditorInput =. eupdateInput eupdate
-                           , EditorSelection =. eupdateSelection eupdate
-                           ])
-                      signalUpdated roomId)
+                do now <- liftIO getCurrentTime
+                   lift
+                     (do runDB
+                           (updateWhere
+                              [EditorUuid ==. sessionId]
+                              [ EditorTitle =. eupdateTitle eupdate
+                              , EditorInput =. eupdateInput eupdate
+                              , EditorSelection =. eupdateSelection eupdate
+                              , EditorActivity =. now
+                              ])
+                         signalUpdated roomId)
               Nothing -> error ("Invalid incoming update!" <> show str))
 
 sendLoop :: SessionId -> TChan Room -> Room -> WebSocketsT Handler Void
@@ -102,46 +100,54 @@ sendLoop sessionId updates roomId = do
     (do room <- liftIO (atomically (readTChan updates))
         when
           (room == roomId)
-          (do editors <- lift (runDB (getEditors roomId))
+          (do now <- liftIO getCurrentTime
+              editors <- lift (runDB (getEditors roomId))
               sendEditors
-                (filter ((/= sessionId) . editorUuid) (map entityVal editors))))
+                (filter
+                   (\e -> editorConnected e now)
+                   (filter ((/= sessionId) . editorUuid) (map entityVal editors)))))
 
 sendEditor :: Editor -> WebSocketsT Handler ()
 sendEditor editor =
-  sendTextData
-    (encode
-       (object
-          [ "tag" .= ("InitializeEditor" :: Text)
-          , "editor" .=
-            object
-              [ "session" .= editorUuid editor
-              , "title" .= editorTitle editor
-              , "input" .= editorInput editor
-              , "output" .= editorOutput editor
-              , "selection" .= editorSelection editor
-              , "connected" .= editorConnected editor
-              ]
-          ]))
+  do now <- liftIO getCurrentTime
+     sendTextData
+       (encode
+          (object
+             [ "tag" .= ("InitializeEditor" :: Text)
+             , "editor" .=
+               object
+                 [ "session" .= editorUuid editor
+                 , "title" .= editorTitle editor
+                 , "input" .= editorInput editor
+                 , "output" .= editorOutput editor
+                 , "selection" .= editorSelection editor
+                 , "connected" .= editorConnected editor now
+                 ]
+             ]))
 
 sendEditors :: [Editor] -> WebSocketsT Handler ()
 sendEditors editors =
-  sendTextData
-    (encode
-       (object
-          [ "tag" .= ("IncomingViewersUpdate" :: Text)
-          , "viewers" .=
-            (map
-               (\editor ->
-                  object
-                    [ "session" .= editorUuid editor
-                    , "title" .= editorTitle editor
-                    , "input" .= editorInput editor
-                    , "output" .= editorOutput editor
-                    , "selection" .= editorSelection editor
-                    , "connected" .= editorConnected editor
-                    ])
-               editors)
-          ]))
+  do now <- liftIO getCurrentTime
+     sendTextData
+       (encode
+          (object
+             [ "tag" .= ("IncomingViewersUpdate" :: Text)
+             , "viewers" .=
+               (map
+                  (\editor ->
+                     object
+                       [ "session" .= editorUuid editor
+                       , "title" .= editorTitle editor
+                       , "input" .= editorInput editor
+                       , "output" .= editorOutput editor
+                       , "selection" .= editorSelection editor
+                       , "connected" .= editorConnected editor now
+                       ])
+                  editors)
+             ]))
+
+editorConnected :: Editor -> UTCTime -> Bool
+editorConnected editor now = diffUTCTime now (editorActivity editor) < 60 * 30
 
 signalUpdated :: (HandlerSite m ~ App, MonadHandler m) => Room -> m ()
 signalUpdated roomId = do
@@ -160,7 +166,7 @@ createEditorIfMissing roomid sessionId = do
   e <-
     runDB
       (do now <- liftIO getCurrentTime
-          updateWhere [EditorUuid ==. sessionId] [EditorConnected =. True]
+          updateWhere [EditorUuid ==. sessionId] [EditorActivity =. now]
           editors <- getEditors roomid
           case find
                  (\(Entity _ editor) -> editorUuid editor == sessionId)
@@ -180,11 +186,10 @@ createEditorIfMissing roomid sessionId = do
                         , editorRoom = roomid
                         , editorUuid = sessionId
                         , editorCreated = now
-                        , editorEdited = now
+                        , editorActivity = now
                         , editorTitle = ""
                         , editorInput = ""
                         , editorOutput = ""
-                        , editorConnected = True
                         }
             Just e -> pure (entityVal e))
   signalUpdated roomid
@@ -196,5 +201,5 @@ getEditors ::
   -> ReaderT backend m [Entity Editor]
 getEditors roomid =
   selectList
-    [EditorRoom ==. roomid, EditorConnected ==. True]
+    [EditorRoom ==. roomid]
     [Asc EditorCreated]

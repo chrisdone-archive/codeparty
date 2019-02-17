@@ -21,12 +21,11 @@ share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
     uuid SessionId
     UniqueRoomUuid room uuid
     created UTCTime
-    edited UTCTime
+    activity UTCTime
     title Text
     input Text
     selection Selection
     output Text
-    connected Bool
     deriving Eq
     deriving Show
  |]
