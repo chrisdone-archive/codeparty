@@ -1,1 +1,1 @@
-stack build && strip $(stack exec which codeparty) && scp $(stack exec which codeparty) codeparty:codeparty-new
+stack build && strip $(stack exec which codeparty-server) && scp $(stack exec which codeparty-server) codeparty:codeparty-new

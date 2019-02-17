@@ -60,7 +60,7 @@ library
                      , temporary
   default-language:    Haskell2010
 
-executable codeparty
+executable codeparty-server
   hs-source-dirs:      app
   main-is:             Main.hs
   ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
