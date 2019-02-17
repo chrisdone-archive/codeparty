@@ -42,7 +42,7 @@ data Eupdate = Eupdate
 instance FromJSON Eupdate where
   parseJSON j = do
     o <- parseJSON j
-    Eupdate <$> o.: "title" <*> o.: "input" <*> o.: "selection"
+    Eupdate <$> o.: "title" <*> o.: "input" <*> o.:? "selection"
 
 mkYesodDispatch "App" resourcesApp
 
